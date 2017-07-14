@@ -1,6 +1,6 @@
 {
   "name": "firemongo",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "author": "Denes Pal <dsdenes@gmail.com>",
   "description": "",
   "main": "lib/index.js",
