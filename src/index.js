@@ -203,6 +203,7 @@ export default (MongoClient, connectionUrl) => {
   function getSnapshot(key, result) {
     return {
       key,
+      exists: () => !!result,
       val: () => result
     }
   }
