@@ -1,0 +1,33 @@
+{
+  "name": "firemongo",
+  "version": "0.9.0",
+  "author": "Denes Pal <dsdenes@gmail.com>",
+  "description": "",
+  "main": "lib/index.js",
+  "license": "MIT",
+  "scripts": {
+    "test": "jest src/ --no-watchman",
+    "watch": "jest src/ --watch --no-watchman",
+    "build": "babel src/ -d lib",
+    "prepublish": "yarn build",
+    "postpublish": "PACKAGE_VERSION=$(node -pe \"require('./package.json').version\") && git tag $PACKAGE_VERSION && git push --tags",
+    "release-patch": "npm version patch && npm publish",
+    "release-minor": "npm version minor && npm publish",
+    "release-major": "npm version major && npm publish"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.24.1",
+    "babel-jest": "^20.0.3",
+    "babel-plugin-transform-object-rest-spread": "^6.23.0",
+    "babel-polyfill": "^6.23.0",
+    "babel-preset-env": "^1.4.0",
+    "babel-preset-flow": "^6.23.0",
+    "flow-bin": "^0.50.0",
+    "jest": "^20.0.4"
+  },
+  "dependencies": {
+    "lodash": "^4.17.4",
+    "mongo-mock": "^2.4.0",
+    "mongodb": "^2.2.30"
+  }
+}
