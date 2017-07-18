@@ -39,7 +39,6 @@ describe('firemongo', () => {
           'path3/path4/path5/path6/path7'
         ];
 
-
         const values = [
           1,
           { a: 1 },
@@ -115,7 +114,7 @@ describe('firemongo', () => {
 
       });
 
-      describe.only('update', async () => {
+      describe('update', async () => {
 
         const paths = [
           'path1',

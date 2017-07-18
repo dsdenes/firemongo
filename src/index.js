@@ -74,9 +74,8 @@ export default (MongoClient, connectionUrl) => {
         const updateFilter = getUpdateFilter(path);
         const unsetUpdateObject = getUnsetUpdateObject(path);
         await collection.updateOne(updateFilter, unsetUpdateObject, { upsert: true });
-        const updateObject = getUpdateObject(path, value);
-        return collection.updateOne(updateFilter, updateObject, { upsert: true });
-
+        const setObject = getSetObject(path, value);
+        return collection.updateOne(updateFilter, setObject, { upsert: true });
       }
     }
   }
@@ -351,6 +350,17 @@ export default (MongoClient, connectionUrl) => {
       _id: ObjectId(),
       _value: value
     };
+  }
+
+  function getSetObject(path, value) {
+    const pathArray = getPathArray(path);
+    let setPathItems = pathArray.slice(2);
+    let setObject = {
+      '$set': {
+        [setPathItems.join('.')]: value
+      }
+    };
+    return setObject;
   }
 
   function getUpdateObject(path, value) {
