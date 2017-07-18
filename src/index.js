@@ -4,6 +4,7 @@ import _ from 'lodash';
 import {
   ObjectId
 } from 'mongodb';
+import util from 'util';
 
 export default (MongoClient, connectionUrl) => {
 
@@ -52,108 +53,122 @@ export default (MongoClient, connectionUrl) => {
       const connection = await getConnection();
       const pathArray = getPathArray(path);
 
-      let collectionName, collection, updateFilter;
-      switch (pathArray.length) {
-        case 0:
-          throw new Error('path?');
-          break;
-        case 1:
-          collection = connection.collection('__values');
-          value = getInsertValue(null, value);
-          //console.log(path, value);
-          return collection.updateOne({ _id: path }, value, { upsert: true });
-          break;
-        case 2:
-          collectionName = getCollectionName(path);
-          collection = connection.collection(collectionName);
-          updateFilter = getUpdateFilter(path);
-          value = getInsertValue(null, value);
-          // console.log('SET', updateFilter, value);
-          return collection.replaceOne(updateFilter, value, { upsert: true });
-          break;
-        default:
-          collectionName = getCollectionName(path);
-          collection = connection.collection(collectionName);
-          updateFilter = getUpdateFilter(path);
-          const updateObject = getUpdateObject(path, value);
-          const unsetUpdateObject = getUnsetUpdateObject(path, value);
-          await collection.updateOne(updateFilter, unsetUpdateObject, { upsert: true });
-          return collection.updateOne(updateFilter, updateObject, { upsert: true });
-          break;
+      if (pathArray.length === 0) {
+        throw new Error('set path?');
+
+      } else if (pathArray.length === 1) {
+        const collection = connection.collection('__values');
+        const updateValue = getInsertValue(null, value);
+        return collection.updateOne({ _id: path }, updateValue, { upsert: true });
+
+      } else if (pathArray.length === 2) {
+        const collectionName = getCollectionName(path);
+        const collection = connection.collection(collectionName);
+        const updateFilter = getUpdateFilter(path);
+        const updateValue = getInsertValue(null, value);
+        return collection.replaceOne(updateFilter, updateValue, { upsert: true });
+
+      } else {
+        const collectionName = getCollectionName(path);
+        const collection = connection.collection(collectionName);
+        const updateFilter = getUpdateFilter(path);
+        const unsetUpdateObject = getUnsetUpdateObject(path);
+        await collection.updateOne(updateFilter, unsetUpdateObject, { upsert: true });
+        const updateObject = getUpdateObject(path, value);
+        return collection.updateOne(updateFilter, updateObject, { upsert: true });
+
       }
     }
   }
 
   function update(path) {
-    return async (data) => {
+    return async (value) => {
       const connection = await getConnection();
       const pathArray = getPathArray(path);
 
-      let collectionName, collection, updateFilter;
-      switch (pathArray.length) {
-        case 0:
-          throw new Error('path?');
-          break;
-        case 1:
-          path = '__values/' + path;
-          collection = connection.collection('__values');
-          return collection.updateOne({ _id: path }, data, { upsert: true });
-          break;
-        case 2:
-          collectionName = getCollectionName(path);
-          collection = connection.collection(collectionName);
-          updateFilter = getUpdateFilter(path);
-          return collection.updateOne(updateFilter, data, { upsert: true });
-          break;
-        default:
-          collectionName = getCollectionName(path);
-          collection = connection.collection(collectionName);
-          updateFilter = getUpdateFilter(path);
-          const updateObject = getUpdateObject(path, data);
-          return collection.updateOne(updateFilter, updateObject, { upsert: true });
-          break;
+      if (pathArray.length === 0) {
+        throw new Error('update path?');
+
+      } else if (pathArray.length === 1) {
+        const collection = connection.collection('__values');
+        return collection.updateOne({ _id: path }, { '$set': value }, { upsert: true });
+
+      } else if (pathArray.length === 2) {
+        const collectionName = getCollectionName(path);
+        const collection = connection.collection(collectionName);
+        const updateFilter = getUpdateFilter(path);
+        return collection.updateOne(updateFilter, { '$set': value }, { upsert: true });
+
+      } else {
+        const collectionName = getCollectionName(path);
+        const collection = connection.collection(collectionName);
+        const updateFilter = getUpdateFilter(path);
+        const updateObject = getUpdateObject(path, value);
+        return collection.updateOne(updateFilter, updateObject, { upsert: true });
       }
     }
   }
 
   function remove(path) {
-    return async (data) => {
+    return async () => {
       const connection = await getConnection();
-      if (path === 'node') {
+      const pathArray = getPathArray(path);
+      if (pathArray.length === 0) {
         const collections = await connection.listCollections().toArray();
         await Promise.all(collections.map(collection => {
           if (collection.name.indexOf("system.") === -1) {
             return connection.collection(collection.name).drop();
           }
         }));
+
+      } else if (pathArray.length === 1) {
+        const collectionName = getCollectionName(path);
+        const collection = connection.collection(collectionName);
+        try {
+          return await collection.drop();
+        } catch (err) {
+          if (err.message !== 'ns not found') {
+            throw err;
+          }
+        }
+
+      } else if (pathArray.length === 2) {
+        const collectionName = getCollectionName(path);
+        const collection = connection.collection(collectionName);
+        const findFilter = getUpdateFilter(path);
+        return collection.deleteOne(findFilter);
+
       } else {
-        return update(path, null);
+
+        const collectionName = getCollectionName(path);
+        const collection = connection.collection(collectionName);
+        const updateFilter = getUpdateFilter(path);
+        const unsetUpdateObject = getUnsetUpdateObject(path);
+        return collection.updateOne(updateFilter, unsetUpdateObject, { upsert: true });
       }
     }
   }
 
   function push(path) {
-    return async (data) => {
+    return async (value) => {
       const connection = await getConnection();
       const pathArray = getPathArray(path);
 
-      let collection;
-      switch (pathArray.length) {
-        case 0:
-          throw new Error('path?');
-          break;
-        case 1:
-          collection = connection.collection(path);
-          data = getInsertValue(null, data);
-          return collection.insertOne(data);
-          break;
-        default:
-          const collectionName = getCollectionName(path);
-          collection = connection.collection(collectionName);
-          const findFilter = getFindFilter(path);
-          const pushObject = getPushObject(path + '/_values', data);
-          return collection.updateOne(findFilter, pushObject, { upsert: true });
-          break;
+      if (pathArray.length === 0) {
+        throw new Error('push path?');
+
+      } else if (pathArray.length === 1) {
+        const collection = connection.collection(path);
+        const pushDocument = getPushDocument(value);
+        return collection.insertOne(pushDocument);
+
+      } else {
+        const collectionName = getCollectionName(path);
+        const collection = connection.collection(collectionName);
+        const findFilter = getFindFilter(path);
+        const pushObject = getPushObject(path, value);
+        // console.log(util.inspect(pushObject, { showHidden: false, depth: null }));
+        return collection.updateOne(findFilter, pushObject, { upsert: true });
       }
     }
   }
@@ -168,7 +183,7 @@ export default (MongoClient, connectionUrl) => {
       let collectionName, collection, findFilter, result, resultDoc;
       switch (pathArray.length) {
         case 0:
-          throw new Error('path?');
+          // TODO get back with all collections??
           break;
         case 1:
           if (await isCollection(path)) {
@@ -190,7 +205,12 @@ export default (MongoClient, connectionUrl) => {
           result = getResult(result);
           break;
         default:
-          // TODO
+          collectionName = getCollectionName(path);
+          collection = connection.collection(collectionName);
+          findFilter = getFindFilter(path);
+          const resolvePath = getResolvePath(path);
+          result = await collection.findOne(findFilter) || null;
+          result = getResult(result, resolvePath);
           break;
       }
 
@@ -220,7 +240,7 @@ export default (MongoClient, connectionUrl) => {
   }
 
   function getPathArray(path) {
-    return _.compact(path.split('/'));
+    return path ? _.compact(path.split('/')) : [];
   }
 
   function getPathString(pathArray) {
@@ -235,10 +255,12 @@ export default (MongoClient, connectionUrl) => {
   }
 
   function getFindFilter(path) {
-    const documentId = getPathArray(path)[1];
-    return {
+    const pathArray = getPathArray(path);
+    const documentId = pathArray.slice(1)[0];
+    let findFilter = {
       _id: documentId
-    }
+    };
+    return findFilter;
   }
 
   function getUpdateFilter(path) {
@@ -248,8 +270,15 @@ export default (MongoClient, connectionUrl) => {
     }
   }
 
-  function getInsertValue(key, value) {
-    if (_.isString(value) || _.isNumber(value) || _.isBoolean(value)) {
+  function getResolvePath(path) {
+    const pathArray = getPathArray(path);
+    const resolvePathArray = pathArray.slice(2);
+    const resolvePath = resolvePathArray.join('.');
+    return resolvePath;
+  }
+
+  function getInsertValue(key, value, force = false) {
+    if (force || _.isString(value) || _.isNumber(value) || _.isBoolean(value) || _.isArray(value)) {
       const insertVal = {
         '_value': value
       };
@@ -258,44 +287,57 @@ export default (MongoClient, connectionUrl) => {
       }
       return insertVal;
     } else if (_.isPlainObject(value)) {
-      return value;
-    } else if (_.isArray(value)) {
-      return _.zipObject(Object.keys(value), Object.values(value));
+      return Object.assign({}, value);
     } else {
       throw new Error('getInsertValue, what else? ' + JSON.stringify(value));
     }
   }
 
-  function getResult(result) {
-    if (result === null) {
+  function getResult(result, resolvePath) {
+
+    // console.log('getResult', result, resolvePath);
+
+    if (result === null || typeof result === 'undefined') {
       return null;
     } else if (_.isPlainObject(result) && result.hasOwnProperty('_value')) {
-      return result._value;
-    } else if (_.isPlainObject(result) && result.hasOwnProperty('_values')) {
-      return getResult(result._values);
+      return getResult(result._value);
+    // } else if (_.isPlainObject(result) && result.hasOwnProperty('_values')) {
+    //   return getResult(result._values);
+    } else if (_.isPlainObject(result) && resolvePath) {
+      return getResult(_.get(result, resolvePath));
     } else if (_.isPlainObject(result)) {
       return _.omit(result, '_id');
     } else if (_.isArray(result)) {
-      return _(result)
-        .keyBy('_id')
-        .mapValues(getResult)
-        .value();
+      if (result.length && result[0].hasOwnProperty('_id')) {
+        const arrayResult = Object.values(result);
+        return _.zipObject(_.map(arrayResult, '_id'), _.map(arrayResult, '_value'));
+      } else {
+        return result;
+      }
+    } else if (_.isNumber(result) || _.isString(result)) {
+      return result;
     } else {
       throw new Error('Get result, what else?? ' + JSON.stringify(result));
     }
   }
 
-  function getPushObject(path, data) {
+  function getPushObject(path, value) {
     const pathArray = getPathArray(path);
-    const pushPathItems = pathArray.slice(2);
-    const _id = ObjectId();
-    data = getInsertValue(_id, data);
-    let pushObject = data;
-    for (let pathItem of pushPathItems) {
-      pushObject = {
-        [pathItem]: Object.assign({}, pushObject)
-      };
+    if (pathArray.length === 2) {
+      pathArray.push('_value');
     }
+    let pushPathItems = pathArray.slice(2);
+    const _id = ObjectId();
+    let pushObject = {
+      [pushPathItems.join('.')]: getInsertValue(_id, value, true)
+    };
+
+    // pushPathItems = pushPathItems.reverse();
+    // for (let pathItem of pushPathItems) {
+    //   pushObject = {
+    //     [pathItem]: Object.assign({}, pushObject)
+    //   };
+    // }
 
     pushObject = {
       '$push': Object.assign({}, pushObject)
@@ -304,29 +346,34 @@ export default (MongoClient, connectionUrl) => {
     return pushObject;
   }
 
-  function getUpdateObject(path, data) {
+  function getPushDocument(value) {
+    return {
+      _id: ObjectId(),
+      _value: value
+    };
+  }
+
+  function getUpdateObject(path, value) {
     const pathArray = getPathArray(path);
-    const updatePathItems = pathArray.slice(2);
-    let updateObject = data;
-    for (let pathItem of updatePathItems) {
-      updateObject = {
-        [pathItem]: Object.assign({}, updateObject)
-      };
+    let updatePathItems = pathArray.slice(2);
+    let updateObject = {
+      '$set': {}
+    };
+
+    for (let key in value) {
+      updateObject.$set[updatePathItems.concat(key).join('.')] = value[key];
     }
     return updateObject;
   }
 
   function getUnsetUpdateObject(path) {
-    const pathArray = getPathArray(path);
-    const updatePathItems = pathArray.slice(2, -1);
-    const unsetKey = pathArray.slice(-1)[0];
-    let updateObject = { $unset: { [unsetKey]: 1 } };
-    for (let pathItem of updatePathItems) {
-      updateObject = {
-        [pathItem]: Object.assign({}, updateObject)
-      };
-    }
+    let updateObject = { $unset: { [getNestedUnsetPath(path)]: 1 } };
     return updateObject;
+  }
+
+  function getNestedUnsetPath(path) {
+    const pathArray = getPathArray(path);
+    return pathArray.slice(2).join('.');
   }
 }
 
